@@ -51,13 +51,13 @@ fn valueof(e: Expr, env: &Vec<u32>) -> u32 {
         }
         Expr::Let(e, body) => {
             let mut newenv = env.clone();
-            newenv.insert(0, valueof(*e, env));
+            newenv.push(valueof(*e, env));
             valueof(*body, &newenv)
         }
         Expr::Lambda(x) => valueof(*x, env),
         Expr::App(rator, rand) => {
             let mut newenv = env.clone();
-            newenv.insert(0, valueof(*rand, env));
+            newenv.push(valueof(*rand, env));
             valueof(*rator, &newenv)
         }
     }
@@ -66,6 +66,6 @@ fn valueof(e: Expr, env: &Vec<u32>) -> u32 {
 fn main() {
     //let result = Expr::If(Box::new(Expr::Zero(Box::new(Expr::Const(0))))
     //  , Box::new(Expr::Mult(Box::new(Expr::Const(2)), Box::new(Expr::Const(2)))), Box::new(Expr::Const(5)));
-    let result = Expr::App(Expr::App(Expr::Lambda(Expr::Var(1)), Expr::Const(6)), Expr::Const(5));
+    let result = Expr::App(Box::new(Expr::App(Box::new(Expr::Lambda( Box::new(Expr::Lambda(Box::new(Expr::Var(1)))))), Box::new(Expr::Const(6)))), Box::new(Expr::Const(5)));
     println!("{}", valueof(result, &Vec::new()));
 }
