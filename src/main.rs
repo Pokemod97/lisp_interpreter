@@ -1,6 +1,5 @@
-use std::result;
-
 use chumsky::prelude::*;
+#[derive(Debug, PartialEq, Clone)]
 enum Expr {
     Const(u32),
     Var(usize),
@@ -11,6 +10,105 @@ enum Expr {
     Let(Box<Expr>, Box<Expr>),
     Lambda(Box<Expr>),
     App(Box<Expr>, Box<Expr>),
+}
+fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
+    recursive(|expr| {
+        let constant = text::keyword("const")
+            .ignore_then(text::int(10).padded())
+            .map(|val: String| val.parse().unwrap())
+            .map(Expr::Const);
+        let var = text::keyword("var")
+            .ignore_then(text::int(10).padded())
+            .map(|val: String| val.parse().unwrap())
+            .map(Expr::Var);
+        let sub1 = text::keyword("sub1")
+            .ignore_then(expr.clone())
+            .map(|x| Expr::Sub1(Box::new(x)));
+        let zero = text::keyword("zero")
+            .ignore_then(expr.clone())
+            .map(|x| Expr::Zero(Box::new(x)));
+        let lambda = text::keyword("lambda")
+            .ignore_then(expr.clone())
+            .map(|x| Expr::Lambda(Box::new(x)));
+        let mult = text::keyword("mult")
+            .ignore_then(expr.clone())
+            .then(expr.clone())
+            .map(|(x, y)| Expr::Mult(Box::new(x), Box::new(y)));
+        let r#let = text::keyword("let")
+            .ignore_then(expr.clone())
+            .then(expr.clone())
+            .map(|(x, y)| Expr::Let(Box::new(x), Box::new(y)));
+        let app = text::keyword("app")
+            .ignore_then(expr.clone())
+            .then(expr.clone())
+            .map(|(x, y)| Expr::App(Box::new(x), Box::new(y)));
+        let r#if = text::keyword("if")
+            .ignore_then(expr.clone())
+            .then(expr.clone())
+            .then(expr.clone())
+            .map(|((x, y), z)| Expr::If(Box::new(x), Box::new(y), Box::new(z)));
+
+        let inner = choice((constant, var, sub1, zero, lambda, mult, r#let, app, r#if));
+        inner.padded().delimited_by(just("("), just(")")).padded()
+    })
+}
+
+#[test]
+fn parse_const() {
+    assert_eq!(parser().parse("(const 1)").unwrap(), Expr::Const(1));
+    assert_eq!(
+        parser().parse("  (    const 234 )     ").unwrap(),
+        Expr::Const(234)
+    );
+}
+#[test]
+fn parse_var() {
+    assert_eq!(parser().parse("(var 1)").unwrap(), Expr::Var(1));
+    assert_eq!(
+        parser().parse("  (    var 234 )     ").unwrap(),
+        Expr::Var(234)
+    );
+}
+#[test]
+fn parse_sub1() {
+    let parse_value = parser().parse("(sub1 (const 1))").unwrap();
+    assert_eq!(parse_value, Expr::Sub1(Box::new(Expr::Const(1))));
+}
+
+#[test]
+fn parse_zero() {
+    let parse_value = parser().parse("(zero (const 1))").unwrap();
+    assert_eq!(parse_value, Expr::Zero(Box::new(Expr::Const(1))));
+}
+
+#[test]
+fn parse_lambda() {
+    let parse_value = parser().parse("(lambda (const 1))").unwrap();
+    assert_eq!(parse_value, Expr::Lambda(Box::new(Expr::Const(1))));
+}
+#[test]
+fn parse_mult() {
+    let parse_value = parser().parse("(mult (const 2) (const 3))").unwrap();
+    assert_eq!(
+        parse_value,
+        Expr::Mult(Box::new(Expr::Const(2)), Box::new(Expr::Const(3)))
+    );
+}
+#[test]
+fn parse_let() {
+    let parse_value = parser().parse("(let (const 2) (const 3))").unwrap();
+    assert_eq!(
+        parse_value,
+        Expr::Let(Box::new(Expr::Const(2)), Box::new(Expr::Const(3)))
+    );
+}
+#[test]
+fn parse_if() {
+    let parse_value = parser().parse("(if (zero (const 0)) (const 2) (const 3))").unwrap();
+    assert_eq!(
+        parse_value,
+        Expr::If(Box::new(Expr::Zero(Box::new(Expr::Const(0)))), Box::new(Expr::Const(2)), Box::new(Expr::Const(3)))
+    );
 }
 /*
 (define value-of
@@ -64,8 +162,6 @@ fn valueof(e: Expr, env: &Vec<u32>) -> u32 {
 }
 
 fn main() {
-    //let result = Expr::If(Box::new(Expr::Zero(Box::new(Expr::Const(0))))
-    //  , Box::new(Expr::Mult(Box::new(Expr::Const(2)), Box::new(Expr::Const(2)))), Box::new(Expr::Const(5)));
-    let result = Expr::App(Box::new(Expr::App(Box::new(Expr::Lambda( Box::new(Expr::Lambda(Box::new(Expr::Var(1)))))), Box::new(Expr::Const(6)))), Box::new(Expr::Const(5)));
+    let result = parser().parse("(mult (const 3) (const 2))").unwrap();
     println!("{}", valueof(result, &Vec::new()));
 }
