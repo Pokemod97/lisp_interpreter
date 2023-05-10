@@ -3,13 +3,17 @@ use chumsky::prelude::*;
 enum Expr {
     Const(u32),
     Var(usize),
-    Mult(Box<Expr>, Box<Expr>),
-    Sub1(Box<Expr>),
-    Zero(Box<Expr>),
-    If(Box<Expr>, Box<Expr>, Box<Expr>),
-    Let(Box<Expr>, Box<Expr>),
     Lambda(Box<Expr>),
+    Sub1(Box<Expr>),
+    Add1(Box<Expr>),
+    Zero(Box<Expr>),
+    Let(Box<Expr>, Box<Expr>),
+    Mult(Box<Expr>, Box<Expr>),
+    Sub(Box<Expr>, Box<Expr>),
+    Add(Box<Expr>, Box<Expr>),
+    Div(Box<Expr>, Box<Expr>),
     App(Box<Expr>, Box<Expr>),
+    If(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
     recursive(|expr| {
@@ -23,6 +27,7 @@ fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
             .map(Expr::Var);
         let single_box = choice::<_, Simple<char>>((
             text::keyword("sub1").to(Expr::Sub1 as fn(_) -> _),
+            text::keyword("add1").to(Expr::Add1 as fn(_) -> _),
             text::keyword("zero").to(Expr::Zero as fn(_) -> _),
             text::keyword("lambda").to(Expr::Lambda as fn(_) -> _),
         ))
@@ -31,6 +36,9 @@ fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
         .map(|(x, y)| x(Box::new(y)));
         let double_box = choice((
             text::keyword("mult").to(Expr::Mult as fn(_, _) -> _),
+            text::keyword("add").to(Expr::Add as fn(_, _) -> _),
+            text::keyword("sub").to(Expr::Sub as fn(_, _) -> _),
+            text::keyword("div").to(Expr::Div as fn(_, _) -> _),
             text::keyword("let").to(Expr::Let as fn(_, _) -> _),
             text::keyword("app").to(Expr::App as fn(_, _) -> _),
         ))
@@ -134,7 +142,11 @@ fn valueof(e: Expr, env: &Vec<u32>) -> u32 {
         Expr::Const(x) => x,
         Expr::Var(x) => *env.get(x).unwrap(),
         Expr::Mult(x, y) => valueof(*x, env) * valueof(*y, env),
+        Expr::Add(x, y) => valueof(*x, env) + valueof(*y, env),
+        Expr::Sub(x, y) => valueof(*x, env) - valueof(*y, env),
+        Expr::Div(x, y) => valueof(*x, env) / valueof(*y, env),
         Expr::Sub1(x) => valueof(*x, env) - 1,
+        Expr::Add1(x) => valueof(*x, env) + 1,
         Expr::Zero(x) => {
             if valueof(*x, env) == 0 {
                 1
