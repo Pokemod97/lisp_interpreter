@@ -21,34 +21,30 @@ fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
             .ignore_then(text::int(10).padded())
             .map(|val: String| val.parse().unwrap())
             .map(Expr::Var);
-        let sub1 = text::keyword("sub1")
-            .ignore_then(expr.clone())
-            .map(|x| Expr::Sub1(Box::new(x)));
-        let zero = text::keyword("zero")
-            .ignore_then(expr.clone())
-            .map(|x| Expr::Zero(Box::new(x)));
-        let lambda = text::keyword("lambda")
-            .ignore_then(expr.clone())
-            .map(|x| Expr::Lambda(Box::new(x)));
-        let mult = text::keyword("mult")
-            .ignore_then(expr.clone())
-            .then(expr.clone())
-            .map(|(x, y)| Expr::Mult(Box::new(x), Box::new(y)));
-        let r#let = text::keyword("let")
-            .ignore_then(expr.clone())
-            .then(expr.clone())
-            .map(|(x, y)| Expr::Let(Box::new(x), Box::new(y)));
-        let app = text::keyword("app")
-            .ignore_then(expr.clone())
-            .then(expr.clone())
-            .map(|(x, y)| Expr::App(Box::new(x), Box::new(y)));
+        let single_box = choice::<_, Simple<char>>((
+            text::keyword("sub1").to(Expr::Sub1 as fn(_) -> _),
+            text::keyword("zero").to(Expr::Zero as fn(_) -> _),
+            text::keyword("lambda").to(Expr::Lambda as fn(_) -> _),
+        ))
+        .padded()
+        .then(expr.clone())
+        .map(|(x, y)| x(Box::new(y)));
+        let double_box = choice((
+            text::keyword("mult").to(Expr::Mult as fn(_, _) -> _),
+            text::keyword("let").to(Expr::Let as fn(_, _) -> _),
+            text::keyword("app").to(Expr::App as fn(_, _) -> _),
+        ))
+        .then(expr.clone())
+        .padded()
+        .then(expr.clone())
+        .map(|((x, y), z)| x(Box::new(y), Box::new(z)));
         let r#if = text::keyword("if")
             .ignore_then(expr.clone())
             .then(expr.clone())
             .then(expr.clone())
             .map(|((x, y), z)| Expr::If(Box::new(x), Box::new(y), Box::new(z)));
 
-        let inner = choice((constant, var, sub1, zero, lambda, mult, r#let, app, r#if));
+        let inner = choice((constant, var, single_box, double_box, r#if));
         inner.padded().delimited_by(just("("), just(")")).padded()
     })
 }
@@ -104,10 +100,16 @@ fn parse_let() {
 }
 #[test]
 fn parse_if() {
-    let parse_value = parser().parse("(if (zero (const 0)) (const 2) (const 3))").unwrap();
+    let parse_value = parser()
+        .parse("(if (zero (const 0)) (const 2) (const 3))")
+        .unwrap();
     assert_eq!(
         parse_value,
-        Expr::If(Box::new(Expr::Zero(Box::new(Expr::Const(0)))), Box::new(Expr::Const(2)), Box::new(Expr::Const(3)))
+        Expr::If(
+            Box::new(Expr::Zero(Box::new(Expr::Const(0)))),
+            Box::new(Expr::Const(2)),
+            Box::new(Expr::Const(3))
+        )
     );
 }
 /*
