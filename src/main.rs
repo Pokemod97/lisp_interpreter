@@ -31,7 +31,6 @@ fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
             text::keyword("zero").to(Expr::Zero as fn(_) -> _),
             text::keyword("lambda").to(Expr::Lambda as fn(_) -> _),
         ))
-        .padded()
         .then(expr.clone())
         .map(|(x, y)| x(Box::new(y)));
         let double_box = choice((
@@ -43,7 +42,6 @@ fn parser() -> impl Parser<char, Expr, Error = Simple<char>> {
             text::keyword("app").to(Expr::App as fn(_, _) -> _),
         ))
         .then(expr.clone())
-        .padded()
         .then(expr.clone())
         .map(|((x, y), z)| x(Box::new(y), Box::new(z)));
         let r#if = text::keyword("if")
